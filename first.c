@@ -24,9 +24,9 @@
 #include <signal.h>
 
 #define QUEUESIZE 10
-#define LOOP 10
-#define PRO_MAX 1
-#define CON_MAX 10
+#define LOOP 10000
+#define PRO_MAX 2
+#define CON_MAX 1
 
 void *producer(void *args); // starting routine of pro pthread
 void *consumer(void *args); // starting routine of con pthread
@@ -50,10 +50,12 @@ queue *queueInit(void);
 void queueDelete(queue *q);
 void queueAdd(queue *q, int in);
 void queueDel(queue *q, int *out);
-struct timeval start[LOOP], end[LOOP];
+struct timeval start[LOOP*PRO_MAX], end[LOOP*PRO_MAX];
 void signal_handler(int signum);
 FILE *fp;
+int delete_count = -1;
 int count = -1;
+int time_interval[LOOP*PRO_MAX];
 
 int main()
 {
@@ -63,7 +65,6 @@ int main()
   fp = fopen(file_name, "w");
 
   signal(SIGINT, signal_handler); 
-  printf("pro and con number: %d %d \n", PRO_MAX, CON_MAX);
   pthread_t pro[PRO_MAX], con[CON_MAX];
 
   fifo = queueInit();
@@ -83,12 +84,10 @@ int main()
   for (int i = 0; i < PRO_MAX; i++)
   {
     pthread_join(pro[i], NULL);
-    //printf("joined producer: %d \n",i);
 
   }
   for (int i = 0; i < CON_MAX; i++){
     pthread_join(con[i], NULL);
-    //printf("joined consumer: %d \n",i);
   }
     
   queueDelete(fifo);
@@ -99,6 +98,9 @@ int main()
 void signal_handler(int signum) 
 {
   printf("Received signal %d, closing file\n", signum);
+  printf("count number %d\n", delete_count+1);
+
+  fprintf(fp, "%d,", time_interval[delete_count]);
   fclose(fp);
   exit(signum);
 }
@@ -107,7 +109,6 @@ void *task(void *arg)
 { // calulates 10 times a sine function
   double x;
   x = sin(*(int *)(arg)*M_PI / 180);
-  //  printf("work function argument:%d \n",*(int *)(arg));
   return (NULL);
 }
 
@@ -117,7 +118,6 @@ void *producer(void *q)
   int i;
   fifo = (queue *)q;
   workFunction in;
-  //printf()
 
   for (i = 0; i < LOOP; i++)
   {
@@ -130,7 +130,8 @@ void *producer(void *q)
     in.work = task;
     in.arg = &i;
     queueAdd(fifo, *(int *)in.arg);
-    gettimeofday(&start[i], NULL); // start times
+    count++;
+    gettimeofday(&start[count], NULL); // start times
     pthread_mutex_unlock(fifo->mut);
     pthread_cond_signal(fifo->notEmpty);
   }
@@ -140,10 +141,10 @@ void *producer(void *q)
 void *consumer(void *q)
 {
   queue *fifo;
-  int arguement, time_interval[LOOP];
+  int arguement, time_interval[LOOP*PRO_MAX];
   workFunction wf;
   fifo = (queue *)q;
-
+  
 
   while (1)
   {
@@ -154,18 +155,14 @@ void *consumer(void *q)
       pthread_cond_wait(fifo->notEmpty, fifo->mut);
     }
     queueDel(fifo, &arguement);
-    count++;
+    delete_count++;
     wf.work = task;
     wf.work(&arguement);
-    gettimeofday(&end[count], NULL); // end time
-    // printf("end time: %ld \n", end[count].tv_usec);
-    time_interval[count] = (end[count].tv_usec - start[count].tv_usec);
-
-    //fprintf(fp,"%d,",time_interval[count]);
+    gettimeofday(&end[delete_count], NULL); // end time
+    time_interval[delete_count] = (end[delete_count].tv_usec - start[delete_count].tv_usec);
+    //fprintf(fp, "%d,", time_interval[delete_count]);
     pthread_mutex_unlock(fifo->mut);
-    pthread_cond_signal(fifo->notFull);
-    printf("time elapsed %d: %d \n", count,time_interval[count]);
-    
+    pthread_cond_signal(fifo->notFull);    
   }
 
   return (NULL);
@@ -229,9 +226,4 @@ void queueDel(queue *q, int *out)
   q->full = 0;
 
   return;
-}
-
-void printplots(int *elapsed_times)
-{
-
 }
