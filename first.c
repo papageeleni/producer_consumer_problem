@@ -25,11 +25,11 @@
 
 #define QUEUESIZE 10
 #define LOOP 10000
-#define PRO_MAX 2
-#define CON_MAX 1
+#define PRO_MAX 1
+#define CON_MAX 4
 
 void *producer(void *args); // starting routine of pro pthread
-void *consumer(void *args); // starting routine of con pthread
+void *consumer(void *args); // starting routine of con p`thread
 
 typedef struct
 { // work functoin must replace usleep
@@ -62,7 +62,7 @@ int main()
   queue *fifo;
   char file_name[50];
   sprintf(file_name,"producer_%dconsumer_%d.csv",PRO_MAX,CON_MAX);
-  fp = fopen(file_name, "w");
+  fp = fopen("file_name.csv", "a");
 
   signal(SIGINT, signal_handler); 
   pthread_t pro[PRO_MAX], con[CON_MAX];
@@ -97,10 +97,20 @@ int main()
 
 void signal_handler(int signum) 
 {
-  printf("Received signal %d, closing file\n", signum);
-  printf("count number %d\n", delete_count+1);
+  double avg;
+  unsigned long long int sum = 0;
 
-  fprintf(fp, "%d,", time_interval[delete_count]);
+  printf("Received signal %d, closing file\n", signum);
+  for (int i=0; i<LOOP*PRO_MAX; i++)
+  {
+    sum += time_interval[i];
+  }
+  avg = sum/(LOOP*PRO_MAX);
+  printf("sum: %lld, avg:%f \n",sum, avg);
+  fprintf(fp, "%d,%d,%f,", PRO_MAX, CON_MAX, avg);  //    |Producer number|consumer number|average time        
+  fprintf(fp, "\n");          
+
+
   fclose(fp);
   exit(signum);
 }
@@ -141,7 +151,7 @@ void *producer(void *q)
 void *consumer(void *q)
 {
   queue *fifo;
-  int arguement, time_interval[LOOP*PRO_MAX];
+  int arguement;
   workFunction wf;
   fifo = (queue *)q;
   
@@ -160,7 +170,7 @@ void *consumer(void *q)
     wf.work(&arguement);
     gettimeofday(&end[delete_count], NULL); // end time
     time_interval[delete_count] = (end[delete_count].tv_usec - start[delete_count].tv_usec);
-    //fprintf(fp, "%d,", time_interval[delete_count]);
+//    printf("%d,", time_interval[delete_count]);
     pthread_mutex_unlock(fifo->mut);
     pthread_cond_signal(fifo->notFull);    
   }
