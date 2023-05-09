@@ -25,8 +25,8 @@
 
 #define QUEUESIZE 10
 #define LOOP 10000
-#define PRO_MAX 1
-#define CON_MAX 4
+#define PRO_MAX 8
+#define CON_MAX 20
 
 void *producer(void *args); // starting routine of pro pthread
 void *consumer(void *args); // starting routine of con p`thread
@@ -62,7 +62,7 @@ int main()
   queue *fifo;
   char file_name[50];
   sprintf(file_name,"producer_%dconsumer_%d.csv",PRO_MAX,CON_MAX);
-  fp = fopen("file_name.csv", "a");
+  fp = fopen("data.csv", "a");
 
   signal(SIGINT, signal_handler); 
   pthread_t pro[PRO_MAX], con[CON_MAX];
@@ -100,7 +100,7 @@ void signal_handler(int signum)
   double avg;
   unsigned long long int sum = 0;
 
-  printf("Received signal %d, closing file\n", signum);
+  printf("Received signal %d, closing file producers:%d consumers:%d\n", signum, PRO_MAX, CON_MAX );
   for (int i=0; i<LOOP*PRO_MAX; i++)
   {
     sum += time_interval[i];
@@ -117,8 +117,11 @@ void signal_handler(int signum)
 
 void *task(void *arg)
 { // calulates 10 times a sine function
+  
   double x;
-  x = sin(*(int *)(arg)*M_PI / 180);
+  for (int i=0; i<11; i++){
+    x = sin(*(int *)(arg)*M_PI / 180);
+  }
   return (NULL);
 }
 
@@ -169,7 +172,7 @@ void *consumer(void *q)
     wf.work = task;
     wf.work(&arguement);
     gettimeofday(&end[delete_count], NULL); // end time
-    time_interval[delete_count] = (end[delete_count].tv_usec - start[delete_count].tv_usec);
+    time_interval[delete_count] = ((end[delete_count].tv_sec*1000000+end[delete_count].tv_usec) -(start[delete_count].tv_sec*1000000 + start[delete_count].tv_usec));//((end.tv_sec * 1000000 + end.tv_usec) -    (start.tv_sec * 1000000 + start.tv_usec)));
 //    printf("%d,", time_interval[delete_count]);
     pthread_mutex_unlock(fifo->mut);
     pthread_cond_signal(fifo->notFull);    
